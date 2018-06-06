@@ -29,6 +29,11 @@ def initialize ():
     oled.text("Hello!", 0, 0)
     oled.show()
 
+    # Initialize cooling
+    cooling = machine.Pin(15, machine.Pin.OUT)
+    # off
+    cooling.value(1)
+
     for i in range (5):
         ledpin.duty(0)
         time.sleep(0.2)

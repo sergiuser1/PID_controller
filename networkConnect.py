@@ -10,7 +10,7 @@ while tryAgain:
     sta_if.connect('Internet_of_Mussels', 'Feather_HUZZAH32')
     if not sta_if.isconnected():
         inp = input ("Failed to connect to network. Try again? [y / n] ")
-        if inp == "n": TryAgain = False
+        if inp == "n": tryAgain = False
     else:
-        TryAgain = False
+        tryAgain = False
         print('network config:', sta_if.ifconfig())
