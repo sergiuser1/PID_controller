@@ -1,6 +1,8 @@
 import machine
 import time
 import ssd1306
+from Display import *
+from pumps import *
 
 def initialize ():
 
@@ -18,6 +20,9 @@ def initialize ():
     ledpin.duty(1023)
 
     # Initialize pumps
+
+    pump1 = Pump(machine.PWM(machine.Pin(13, machine.Pin.OUT)), machine.PWM(machine.Pin(12, machine.Pin.OUT)))
+    pump2 = Pump(machine.PWM(machine.Pin(27, machine.Pin.OUT)), machine.PWM(machine.Pin(33, machine.Pin.OUT)))
     pump1forward = machine.PWM(machine.Pin(13, machine.Pin.OUT))
     pump1reverse = machine.PWM(machine.Pin(12, machine.Pin.OUT))
     pump2forward = machine.PWM(machine.Pin(27, machine.Pin.OUT))
@@ -38,9 +43,6 @@ def initialize ():
         oled.text(str(i+1) +"...", 0, 0)
         oled.show()
 
-    oled.fill(0)
-    oled.text("Hello,", 0, 0)
-    oled.text("you suckers!", 0, 10)
-    oled.show()
+    printStatus(oled)
 
 
