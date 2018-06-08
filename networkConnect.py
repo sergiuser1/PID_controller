@@ -1,13 +1,16 @@
 import time
 import network
+from Display import *
 
-def tryConnect():
+def tryConnect(display):
     sta_if = network.WLAN(network.STA_IF)
 
-    print('connecting to network...')
+    display.printText("connecting to \nnetwork...")
     sta_if.active(True)
     sta_if.connect('Internet_of_Mussels', 'Feather_HUZZAH32')
+    time.sleep(5)
     if not sta_if.isconnected():
-        print ("Failed to connect to network. ")
+        display.printText("Failed to connect")
     else:
-        print('network config:', sta_if.ifconfig())
+        display.printText("Connection \nsuccessful")
+        time.sleep(2)
