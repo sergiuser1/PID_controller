@@ -4,28 +4,37 @@ class Pump:
 
     def __init__(self, pforward, preverse):
         self.pforward = pforward
-        self.pforward.value(0)
+        self.pforward.freq(800)
+        self.pforward.duty(0)
         self.preverse = preverse
-        self.preverse.value(0)
+        self.preverse.freq(800)
+        self.preverse.duty(0)
         self.status = "stop"
 
-    def activate (self, val):
-        if val == 1:
-            self.pforward.value(1)
-            self.preverse.value(0)
-            self.status = "forward"
-        elif val == 0:
-            self.pforward.value(0)
-            self.preverse.value(0)
-            self.status = "stop"
-        elif val == -1:
-            self.pforward.value(0)
-            self.preverse.value(1)
-            self.status = "reverse"
+    def activate (self, val, cool):
+        if abs(val) > 1023:
+            print("Invalid input. Choose a value between 1023 and -1023")
         else:
-            print ("Invalid input. Choose 1 or -1")
+            if val < 0:
+                self.pforward.duty(0)
+                self.preverse.duty(-val)
+                self.status = "reverse"
+            elif val > 0:
+                self.pforward.duty(val)
+                self.preverse.duty(0)
+                self.status = "forward"
+            else:
+                if cool.status == "on":
+                    print("Cooler on. Can't stop pump")
+                else:
+                    self.pforward.duty(0)
+                    self.preverse.duty(0)
+                    self.status = "stop"
 
-    def stop (self):
-        self.preverse.value(0)
-        self.pforward.value(0)
-        self.status = "stop"
+    def stop (self, cool):
+        if cool.status == "on":
+            print("Cooler on. ")
+        else:
+            self.preverse.duty(0)
+            self.pforward.duty(0)
+            self.status = "stop"

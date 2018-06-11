@@ -21,8 +21,8 @@ display.printText("Initializing...")
 led = Led(machine.PWM(machine.Pin(14), machine.Pin.OUT))
 od = OD()
 temp = TemperatureSensor()
-pump1 = Pump (machine.Pin(12, machine.Pin.OUT), machine.Pin(13, machine.Pin.OUT))
-pump2 = Pump (machine.Pin(27, machine.Pin.OUT), machine.Pin(33, machine.Pin.OUT))
+pump1 = Pump (machine.PWM(machine.Pin(12, machine.Pin.OUT)), machine.PWM(machine.Pin(13, machine.Pin.OUT)))
+pump2 = Pump (machine.PWM(machine.Pin(27, machine.Pin.OUT)), machine.PWM(machine.Pin(33, machine.Pin.OUT)))
 cooler = Cool()
 
 # Connect to WiFi
@@ -41,7 +41,7 @@ rest = 60
 def run(t, rest):
     display.printText("Start!")
     time.sleep(1)
-    pump2.activate(1)
+    pump2.activate(1023, cooler)
     cooler.superCool(pump2)
 
     i = 0
@@ -55,60 +55,68 @@ def run(t, rest):
 
         if temp.readTemp() < 19:
             cooler.basicCool()
-            pump1.stop()
-            pump2.stop()
+            pump1.stop(cooler)
+            pump2.stop(cooler)
+            client.disconnect()
             display.printText("Done")
             break
 
-def castTemp(server="io.adafruit.com", user = user1, password = pwd):
-    c = MQTTClient("umqtt_client", server, user = user, password = password, keepalive = 3600)
+def connect2Client (server="io.adafruit.com", user = user1, password = pwd):
+    c = MQTTClient("umqtt_client", server, user=user, password=password, keepalive=3600)
     c.connect()
-    c.publish(b"{}/f/temperature".format(user), b"{}".format(temp.readTemp()))
-    c.disconnect()
+    return c
 
-def castOD(server="io.adafruit.com", user = user1, password = pwd):
-    c = MQTTClient("umqtt_client", server, user = user, password = password, keepalive = 3600)
-    c.connect()
-    c.publish(b"{}/f/od".format(user), b"{}".format(od.rawRead()))
-    c.disconnect()
+def disconnectClient (client):
+    client.disconnect()
 
-def castPump1(server="io.adafruit.com", user = user1, password = pwd):
-    c = MQTTClient("umqtt_client", server, user = user, password = password, keepalive = 3600)
-    c.connect()
+def castTemp(client, user = user1):
+    client.publish(b"{}/f/temperature".format(user), b"{}".format(temp.readTemp()))
+
+def castOD(client, user = user1):
+    client.publish(b"{}/f/od".format(user), b"{}".format(od.rawRead()))
+
+def castPump1(client, user = user1):
     if pump1.status == "forward":
-        c.publish(b"{}/f/pump-1-activity".format(user), b"{}".format(1))
+        client.publish(b"{}/f/pump-1-activity".format(user), b"{}".format(1))
     elif pump1.status == "reverse":
-        c.publish(b"{}/f/pump-1-activity".format(user), b"{}".format(-1))
+        client.publish(b"{}/f/pump-1-activity".format(user), b"{}".format(-1))
     else:
-        c.publish(b"{}/f/pump-1-activity".format(user), b"{}".format(0))
-    c.disconnect()
+        client.publish(b"{}/f/pump-1-activity".format(user), b"{}".format(0))
 
-def castPump2(server="io.adafruit.com", user = user1, password = pwd):
-    c = MQTTClient("umqtt_client", server, user = user, password = password, keepalive = 3600)
-    c.connect()
+def castPump2(client, user = user1):
     if pump2.status == "forward":
-        c.publish(b"{}/f/pump-2-activity".format(user), b"{}".format(1))
+        client.publish(b"{}/f/pump-2-activity".format(user), b"{}".format(1))
     elif pump2.status == "reverse":
-        c.publish(b"{}/f/pump-2-activity".format(user), b"{}".format(-1))
+        client.publish(b"{}/f/pump-2-activity".format(user), b"{}".format(-1))
     else:
-        c.publish(b"{}/f/pump-2-activity".format(user), b"{}".format(0))
-    c.disconnect()
+        client.publish(b"{}/f/pump-2-activity".format(user), b"{}".format(0))
 
-def castCooler(server="io.adafruit.com", user = user1, password = pwd):
-    c = MQTTClient("umqtt_client", server, user = user, password = password, keepalive = 3600)
-    c.connect()
+def castCooler(client, user = user1):
     if cooler.status == "on":
-        c.publish(b"{}/f/cooler-activity".format(user), b"{}".format(12))
+        client.publish(b"{}/f/cooler-activity".format(user), b"{}".format(12))
     else:
-        c.publish(b"{}/f/cooler-activity".format(user), b"{}".format(5))
-    c.disconnect()
+        client.publish(b"{}/f/cooler-activity".format(user), b"{}".format(5))
+
+def callback(topic, message):
+    print (topic, ":", message)
+
+def subscribePID(client, user = user1):
+    client.set_callback(callback)
+    client.subscribe(b"{}/f/pid-p".format(user))
+    client.subscribe(b"{}/f/pid-i".format(user))
+    client.subscribe(b"{}/f/pid-d".format(user))
+    # once subscribed, all data sent to the feed is stored in a queue. To access the queue, use client.check_msg().
+    # Change the callback method to assign the input to the correct P, I, D when calibrating
 
 def castData():
     display.printText("Casting data...")
-    castCooler()
-    castOD()
-    castPump1()
-    castPump2()
-    castTemp()
+    castCooler(client)
+    castOD(client)
+    castPump1(client)
+    castPump2(client)
+    castTemp(client)
+
+# Connect to client and initialize client object
+client = connect2Client()
 
 run(runtime, rest)
