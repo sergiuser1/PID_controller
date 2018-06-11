@@ -115,6 +115,7 @@ def castData():
     castPump1(client)
     castPump2(client)
     castTemp(client)
+    time.sleep(1)
 
 # Connect to client and initialize client object
 client = connect2Client()
