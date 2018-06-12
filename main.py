@@ -24,7 +24,7 @@ temp = TemperatureSensor()
 pump1 = Pump (machine.PWM(machine.Pin(12, machine.Pin.OUT)), machine.PWM(machine.Pin(13, machine.Pin.OUT)))
 pump2 = Pump (machine.PWM(machine.Pin(27, machine.Pin.OUT)), machine.PWM(machine.Pin(33, machine.Pin.OUT)))
 cooler = Cool()
-
+pid = [0, 0, 0]
 # Connect to WiFi
 tryConnect(display)
 
@@ -38,18 +38,25 @@ runtime = 3600
 # Define data frequency (how many seconds between each data point?)
 rest = 60
 
-def run(t, rest):
+def run(t, rest, c):
     display.printText("Start!")
     time.sleep(1)
-    pump2.activate(1023, cooler)
-    cooler.superCool(pump2)
+    #pump2.activate(1023, cooler)
+    #cooler.superCool(pump2)
+
 
     i = 0
 
     while True:
         if (i % rest) == 0:
             castData()
-        display.printStatus(str(temp.readTemp()), str(od.rawRead()), pump1.status, pump2.status, cooler.status)
+        c.check_msg()
+        if (i % 3) == 0:
+            display.printStatus(str(temp.readTemp()), str(od.rawRead()), pump1.status, pump2.status, cooler.status, "p", pid[0])
+        if (i % 3) == 1:
+            display.printStatus(str(temp.readTemp()), str(od.rawRead()), pump1.status, pump2.status, cooler.status, "i", pid[1])
+        if (i % 3) == 2:
+            display.printStatus(str(temp.readTemp()), str(od.rawRead()), pump1.status, pump2.status, cooler.status, "d", pid[2])
         time.sleep(1)
         i = i + 1
 
@@ -98,6 +105,15 @@ def castCooler(client, user = user1):
         client.publish(b"{}/f/cooler-activity".format(user), b"{}".format(5))
 
 def callback(topic, message):
+    char = topic [-1]
+    msg = str(message)
+    val = int(str(msg)[2:(len(msg)-1)])
+    if char == 112:
+        pid[0] = val
+    elif char == 105:
+        pid[1] = val
+    elif char == 100:
+        pid[2] = val
     print (topic, ":", message)
 
 def subscribePID(client, user = user1):
@@ -119,5 +135,6 @@ def castData():
 
 # Connect to client and initialize client object
 client = connect2Client()
+subscribePID(client)
 
-run(runtime, rest)
+run(runtime, rest, client)
