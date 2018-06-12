@@ -1,6 +1,7 @@
 # import inbuilt time and machine modules
 import time
 import machine
+from math import floor
 
 #import self-written modules
 from od import *
@@ -25,6 +26,8 @@ pump1 = Pump (machine.PWM(machine.Pin(12, machine.Pin.OUT)), machine.PWM(machine
 pump2 = Pump (machine.PWM(machine.Pin(27, machine.Pin.OUT)), machine.PWM(machine.Pin(33, machine.Pin.OUT)))
 cooler = Cool()
 pid = [0, 0, 0]
+err = [0]
+optTemp = 19
 # Connect to WiFi
 tryConnect(display)
 
@@ -44,7 +47,6 @@ def run(t, rest, c):
     #pump2.activate(1023, cooler)
     #cooler.superCool(pump2)
 
-
     i = 0
 
     while True:
@@ -52,21 +54,39 @@ def run(t, rest, c):
             castData()
         c.check_msg()
         if (i % 3) == 0:
-            display.printStatus(str(temp.readTemp()), str(od.rawRead()), pump1.status, pump2.status, cooler.status, "p", pid[0])
+            display.printStatus(str(temp.readTemp()), str(od.rawRead()), str(pump1.getVal()), str(pump2.getVal()), cooler.status, "p", pid[0])
         if (i % 3) == 1:
-            display.printStatus(str(temp.readTemp()), str(od.rawRead()), pump1.status, pump2.status, cooler.status, "i", pid[1])
+            display.printStatus(str(temp.readTemp()), str(od.rawRead()), str(pump1.getVal()), str(pump2.getVal()), cooler.status, "i", pid[1])
         if (i % 3) == 2:
-            display.printStatus(str(temp.readTemp()), str(od.rawRead()), pump1.status, pump2.status, cooler.status, "d", pid[2])
-        time.sleep(1)
+            display.printStatus(str(temp.readTemp()), str(od.rawRead()), str(pump1.getVal()), str(pump2.getVal()), cooler.status, "d", pid[2])
+        time.sleep(5)
         i = i + 1
 
-        if temp.readTemp() < 19:
+        pw = toPW(getValPID (pid, err, optTemp, temp.readTemp()))
+        print ("pw: " + str(pw))
+        if (pw > 500):
+            cooler.superCool(pump2)
+        else:
             cooler.basicCool()
-            pump1.stop(cooler)
-            pump2.stop(cooler)
-            client.disconnect()
-            display.printText("Done")
-            break
+
+        if pw <1023:
+            pump2.activate(pw, cooler)
+        else:
+            pump2.activate(1023, cooler)
+        print(str(temp.readTemp()))
+        print(str(temp.readTemp()-optTemp))
+        print(pw)
+
+def toPW (val):
+    return floor((1023/200)*(val + 100))
+
+def getValPID (pid, errHistory, tOpt, tAct):
+    val = pid[0] * (tAct - tOpt) + pid[1] * sum (errHistory) + pid[2] * ((tAct - tOpt) - errHistory[-1])
+    errHistory.append(tAct - tOpt)
+    if len(errHistory) > 10:
+        del errHistory[0]
+    print ("val: " + str(val))
+    return val
 
 def connect2Client (server="io.adafruit.com", user = user1, password = pwd):
     c = MQTTClient("umqtt_client", server, user=user, password=password, keepalive=3600)
@@ -83,20 +103,10 @@ def castOD(client, user = user1):
     client.publish(b"{}/f/od".format(user), b"{}".format(od.rawRead()))
 
 def castPump1(client, user = user1):
-    if pump1.status == "forward":
-        client.publish(b"{}/f/pump-1-activity".format(user), b"{}".format(1))
-    elif pump1.status == "reverse":
-        client.publish(b"{}/f/pump-1-activity".format(user), b"{}".format(-1))
-    else:
-        client.publish(b"{}/f/pump-1-activity".format(user), b"{}".format(0))
+    client.publish(b"{}/f/pump-1-activity".format(user), b"{}".format(pump1.getVal()))
 
 def castPump2(client, user = user1):
-    if pump2.status == "forward":
-        client.publish(b"{}/f/pump-2-activity".format(user), b"{}".format(1))
-    elif pump2.status == "reverse":
-        client.publish(b"{}/f/pump-2-activity".format(user), b"{}".format(-1))
-    else:
-        client.publish(b"{}/f/pump-2-activity".format(user), b"{}".format(0))
+    client.publish(b"{}/f/pump-2-activity".format(user), b"{}".format(pump2.getVal()))
 
 def castCooler(client, user = user1):
     if cooler.status == "on":

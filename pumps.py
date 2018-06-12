@@ -10,6 +10,10 @@ class Pump:
         self.preverse.freq(800)
         self.preverse.duty(0)
         self.status = "stop"
+        self.val = 0
+
+    def getVal (self):
+        return self.val
 
     def activate (self, val, cool):
         if abs(val) > 1023:
@@ -19,10 +23,12 @@ class Pump:
                 self.pforward.duty(0)
                 self.preverse.duty(-val)
                 self.status = "reverse"
+                self.val = -val
             elif val > 0:
                 self.pforward.duty(val)
                 self.preverse.duty(0)
                 self.status = "forward"
+                self.val = val
             else:
                 if cool.status == "on":
                     print("Cooler on. Can't stop pump")
@@ -30,6 +36,7 @@ class Pump:
                     self.pforward.duty(0)
                     self.preverse.duty(0)
                     self.status = "stop"
+                    self.val = 0
 
     def stop (self, cool):
         if cool.status == "on":
@@ -38,3 +45,4 @@ class Pump:
             self.preverse.duty(0)
             self.pforward.duty(0)
             self.status = "stop"
+            self.val = 0
