@@ -101,7 +101,7 @@ def toPW (val):
 def getValPID (pid, errHistory, tOpt, tAct):
     val = pid[0] * (tAct - tOpt) + pid[1] * sum (errHistory) + pid[2] * ((tAct - tOpt) - errHistory[-1])
     errHistory.append(tAct - tOpt)
-    if len(errHistory) > 10:
+    if len(errHistory) > 20:
         del errHistory[0]
     print ("val: " + str(val))
     return val
