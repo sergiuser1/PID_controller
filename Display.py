@@ -15,7 +15,10 @@ class OLED:
         self.oled.text(("Pump 2: " + p2), 0, 30)
         self.oled.text(("Cooler: " + cool), 0, 40)
         self.oled.text((char + ":      " + str(val)), 0, 50)
-        self.oled.show()
+        try:
+            self.oled.show()
+        except:
+            print ("failed to update screen")
 
     def printText (self, text):
         self.oled.fill(0)

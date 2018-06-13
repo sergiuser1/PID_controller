@@ -28,6 +28,7 @@ cooler = Cool()
 pid = [0, 0, 0]
 err = [0]
 optTemp = 19
+
 # Connect to WiFi
 tryConnect(display)
 
@@ -39,31 +40,41 @@ user1 = 'bossebandowski' # See https://accounts.adafruit.com
 runtime = 3600
 
 # Define data frequency (how many seconds between each data point?)
-rest = 60
+rest = 15
 
 def run(t, rest, c):
     display.printText("Start!")
     time.sleep(1)
-    #pump2.activate(1023, cooler)
-    #cooler.superCool(pump2)
 
     i = 0
 
     while True:
+
         if (i % rest) == 0:
-            castData()
-        c.check_msg()
+            try:
+                castData(c)
+            except:
+                print ("failed castData()")
+                c = connect2Client()
+                subscribePID(c)
+
+        try:
+            c.check_msg()
+        except:
+            print ("failed check_msg")
+            c = connect2Client()
+
         if (i % 3) == 0:
             display.printStatus(str(temp.readTemp()), str(od.rawRead()), str(pump1.getVal()), str(pump2.getVal()), cooler.status, "p", pid[0])
         if (i % 3) == 1:
             display.printStatus(str(temp.readTemp()), str(od.rawRead()), str(pump1.getVal()), str(pump2.getVal()), cooler.status, "i", pid[1])
         if (i % 3) == 2:
             display.printStatus(str(temp.readTemp()), str(od.rawRead()), str(pump1.getVal()), str(pump2.getVal()), cooler.status, "d", pid[2])
-        time.sleep(5)
+        time.sleep(2)
         i = i + 1
 
         pw = toPW(getValPID (pid, err, optTemp, temp.readTemp()))
-        print ("pw: " + str(pw))
+
         if (pw > 500):
             cooler.superCool(pump2)
         else:
@@ -73,12 +84,19 @@ def run(t, rest, c):
             pump2.activate(pw, cooler)
         else:
             pump2.activate(1023, cooler)
-        print(str(temp.readTemp()))
-        print(str(temp.readTemp()-optTemp))
-        print(pw)
+        print("temp: " + str(temp.readTemp()))
+        print("difference: " + str(temp.readTemp()-optTemp))
+        print("pw: " + str(pw))
 
 def toPW (val):
-    return floor((1023/200)*(val + 100))
+    if val > 50:
+        return 1023
+    elif val <= 50 and val > 30:
+        return 750
+    elif val <= 30 and val > 10:
+        return 500
+    else:
+        return 0
 
 def getValPID (pid, errHistory, tOpt, tAct):
     val = pid[0] * (tAct - tOpt) + pid[1] * sum (errHistory) + pid[2] * ((tAct - tOpt) - errHistory[-1])
@@ -134,13 +152,13 @@ def subscribePID(client, user = user1):
     # once subscribed, all data sent to the feed is stored in a queue. To access the queue, use client.check_msg().
     # Change the callback method to assign the input to the correct P, I, D when calibrating
 
-def castData():
+def castData(c):
     display.printText("Casting data...")
-    castCooler(client)
-    castOD(client)
-    castPump1(client)
-    castPump2(client)
-    castTemp(client)
+    castCooler(c)
+    castOD(c)
+    castPump1(c)
+    castPump2(c)
+    castTemp(c)
     time.sleep(1)
 
 # Connect to client and initialize client object
