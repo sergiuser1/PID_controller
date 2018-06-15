@@ -4,7 +4,7 @@ class Led :
 
     def __init__(self, pin):
         self.ledpin = pin
-        self.ledpin.freq(1000)
+        self.ledpin.freq(50000)
         self.ledpin.duty(1023)
 
     def setPW (self, val):

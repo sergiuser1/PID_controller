@@ -25,9 +25,19 @@ temp = TemperatureSensor()
 pump1 = Pump (machine.PWM(machine.Pin(12, machine.Pin.OUT)), machine.PWM(machine.Pin(13, machine.Pin.OUT)))
 pump2 = Pump (machine.PWM(machine.Pin(27, machine.Pin.OUT)), machine.PWM(machine.Pin(33, machine.Pin.OUT)))
 cooler = Cool()
-pid = [0, 0, 0]
+
+pid = [20, 6, 30]
 err = [0]
 optTemp = 19
+
+wlOut = machine.Pin(21, machine.Pin.OUT)
+wlOut.value(1)
+wlLow = machine.ADC(machine.Pin(36))
+wlLow.atten(3)
+wlLow.width(machine.ADC.WIDTH_10BIT)
+wlHigh = machine.ADC(machine.Pin(32))
+wlHigh.atten(3)
+wlHigh.width(machine.ADC.WIDTH_10BIT)
 
 # Connect to WiFi
 tryConnect(display)
@@ -87,6 +97,21 @@ def run(t, rest, c):
         print("temp: " + str(temp.readTemp()))
         print("difference: " + str(temp.readTemp()-optTemp))
         print("pw: " + str(pw))
+
+def checkWL ():
+    if wlHigh.read() > 1000:
+        return False
+    else:
+        for i in range (5):
+            if wlHigh.read() > 1000: return False
+        return True
+
+def changeWL():
+    if checkWL():
+        if wlLow.read() > 1000:
+            pump1.activate(-1023, cooler)
+        else:
+            pump1.stop(cooler)
 
 def toPW (val):
     if val > 50:
