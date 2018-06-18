@@ -22,8 +22,8 @@ display.printText("Initializing...")
 led = Led(machine.PWM(machine.Pin(14), machine.Pin.OUT))
 od = OD()
 temp = TemperatureSensor()
-pump1 = Pump (machine.PWM(machine.Pin(12, machine.Pin.OUT)), machine.PWM(machine.Pin(13, machine.Pin.OUT)))
-pump2 = Pump (machine.PWM(machine.Pin(27, machine.Pin.OUT)), machine.PWM(machine.Pin(33, machine.Pin.OUT)))
+pump1 = Pump (machine.PWM(machine.Pin(12, machine.Pin.OUT)), machine.PWM(machine.Pin(13, machine.Pin.OUT)),False)
+pump2 = Pump (machine.PWM(machine.Pin(27, machine.Pin.OUT)), machine.PWM(machine.Pin(33, machine.Pin.OUT)),True)#isDepenent
 cooler = Cool()
 
 # temperature PID init
