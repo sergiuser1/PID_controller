@@ -22,8 +22,8 @@ display.printText("Initializing...")
 led = Led(machine.PWM(machine.Pin(14), machine.Pin.OUT))
 od = OD()
 temp = TemperatureSensor()
-pump1 = Pump (machine.PWM(machine.Pin(12, machine.Pin.OUT)), machine.PWM(machine.Pin(13, machine.Pin.OUT)),False)
-pump2 = Pump (machine.PWM(machine.Pin(27, machine.Pin.OUT)), machine.PWM(machine.Pin(33, machine.Pin.OUT)),True)#isDepenent
+pump1 = Pump (machine.PWM(machine.Pin(12, machine.Pin.OUT)), machine.PWM(machine.Pin(13, machine.Pin.OUT)), False)
+pump2 = Pump (machine.PWM(machine.Pin(27, machine.Pin.OUT)), machine.PWM(machine.Pin(33, machine.Pin.OUT)), True)
 cooler = Cool()
 
 # temperature PID init
@@ -47,7 +47,6 @@ cim = 20000.0
 cd = 20000.0
 pr = 1.25
 vm = 2000.0
-
 
 # Connect to WiFi
 tryConnect(display)
@@ -114,21 +113,25 @@ def run(rest, c):
         cia = cia * 2.0**(1/84600)
         cim = cim - 2.0
 
-        # Update pump 1 rest time (p1t)
+        # Update pump 1 remaining time if the pump is running (p1t)
         if p1t >= 0:
-            p1t = p1t - 1
+            p1t = p1t - 1.0
         else:
             marker = 0
 
-        # Check if concentration is too low. If yes, calculate pump runtime based on algae parameters
+        # Check if concentration is too low. If yes, calculate pump runtime based on algae parameters. Set algae
+        # concentration in mussel tank to desired value
         if cim < 19500:
             p1t = - (vm * (cim - cd))/(pr*(cia - cd))
             marker = 1
+            cim = cd
 
+        # start pump if need be, else stop pump. Update volume
         if marker == 1:
-            pump1.activate()
-
-
+            pump1.activate(1023, cooler)
+            vm = vm + 1.25
+        else:
+            pump1.stop(cooler)
 
         # Increment i
         i = i + 1
