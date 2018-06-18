@@ -26,10 +26,12 @@ pump1 = Pump (machine.PWM(machine.Pin(12, machine.Pin.OUT)), machine.PWM(machine
 pump2 = Pump (machine.PWM(machine.Pin(27, machine.Pin.OUT)), machine.PWM(machine.Pin(33, machine.Pin.OUT)))
 cooler = Cool()
 
+# temperature PID init
 pid = [20, 6, 30]
 err = [0]
 optTemp = 19
 
+# Water level control
 wlOut = machine.Pin(21, machine.Pin.OUT)
 wlOut.value(1)
 wlLow = machine.ADC(machine.Pin(36))
@@ -39,6 +41,14 @@ wlHigh = machine.ADC(machine.Pin(32))
 wlHigh.atten(3)
 wlHigh.width(machine.ADC.WIDTH_10BIT)
 
+# initial algae parameters
+cia = 50000.0
+cim = 20000.0
+cd = 20000.0
+pr = 1.25
+vm = 2000.0
+
+
 # Connect to WiFi
 tryConnect(display)
 
@@ -46,19 +56,18 @@ tryConnect(display)
 pwd = '5c0f28d19a0a4e5b9890ea6e3538b1d7'
 user1 = 'bossebandowski' # See https://accounts.adafruit.com
 
-# Define how long the system is meant to run [s]
-runtime = 3600
-
 # Define data frequency (how many seconds between each data point?)
 rest = 15
 
-def run(t, rest, c):
+def run(rest, c):
     display.printText("Start!")
     time.sleep(1)
 
     i = 0
 
     while True:
+
+        # Cast data
 
         if (i % rest) == 0:
             try:
@@ -68,11 +77,15 @@ def run(t, rest, c):
                 c = connect2Client()
                 subscribePID(c)
 
+        # Check for PID updates
+
         try:
             c.check_msg()
         except:
             print ("failed check_msg")
             c = connect2Client()
+
+        # Update screen
 
         if (i % 3) == 0:
             display.printStatus(str(temp.readTemp()), str(od.rawRead()), str(pump1.getVal()), str(pump2.getVal()), cooler.status, "p", pid[0])
@@ -80,9 +93,9 @@ def run(t, rest, c):
             display.printStatus(str(temp.readTemp()), str(od.rawRead()), str(pump1.getVal()), str(pump2.getVal()), cooler.status, "i", pid[1])
         if (i % 3) == 2:
             display.printStatus(str(temp.readTemp()), str(od.rawRead()), str(pump1.getVal()), str(pump2.getVal()), cooler.status, "d", pid[2])
-        time.sleep(2)
-        i = i + 1
 
+
+        # Temp Control
         pw = toPW(getValPID (pid, err, optTemp, temp.readTemp()))
 
         if (pw > 500):
@@ -94,9 +107,34 @@ def run(t, rest, c):
             pump2.activate(pw, cooler)
         else:
             pump2.activate(1023, cooler)
-        print("temp: " + str(temp.readTemp()))
-        print("difference: " + str(temp.readTemp()-optTemp))
-        print("pw: " + str(pw))
+
+        # Algae Control
+
+        # Update concentrations depending on growth and filtration
+        cia = cia * 2.0**(1/84600)
+        cim = cim - 2.0
+
+        # Update pump 1 rest time (p1t)
+        if p1t >= 0:
+            p1t = p1t - 1
+        else:
+            marker = 0
+
+        # Check if concentration is too low. If yes, calculate pump runtime based on algae parameters
+        if cim < 19500:
+            p1t = - (vm * (cim - cd))/(pr*(cia - cd))
+            marker = 1
+
+        if marker == 1:
+            pump1.activate()
+
+
+
+        # Increment i
+        i = i + 1
+
+        # Pause
+        time.sleep(1)
 
 def checkWL ():
     if wlHigh.read() > 1000:
@@ -167,7 +205,6 @@ def callback(topic, message):
         pid[1] = val
     elif char == 100:
         pid[2] = val
-    print (topic, ":", message)
 
 def subscribePID(client, user = user1):
     client.set_callback(callback)
@@ -190,4 +227,4 @@ def castData(c):
 client = connect2Client()
 subscribePID(client)
 
-run(runtime, rest, client)
+run(rest, client)
