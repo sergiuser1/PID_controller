@@ -27,21 +27,24 @@ pump2 = Pump (machine.PWM(machine.Pin(27, machine.Pin.OUT)), machine.PWM(machine
 cooler = Cool()
 
 # temperature PID init
-pid = [20, 6, 30]
-err = [0]
+temppid = [20, 6, 30]
+temperr = [0]
 optTemp = 19
+
+# OD PID init
+odpid = [0, 0, 0]
+oderr = [0]
+optOD = 590
 
 # Water level control
 wlOut = machine.Pin(21, machine.Pin.OUT)
 wlOut.value(1)
-wlLow = machine.ADC(machine.Pin(36))
-wlLow.atten(3)
-wlLow.width(machine.ADC.WIDTH_10BIT)
-wlHigh = machine.ADC(machine.Pin(32))
-wlHigh.atten(3)
-wlHigh.width(machine.ADC.WIDTH_10BIT)
+wl = machine.ADC(machine.Pin(36))
+wl.atten(3)
+wl.width(machine.ADC.WIDTH_10BIT)
 
 # initial algae parameters
+
 cia = 50000.0
 cim = 20000.0
 cd = 20000.0
@@ -58,11 +61,14 @@ user1 = 'bossebandowski' # See https://accounts.adafruit.com
 # Define data frequency (how many seconds between each data point?)
 rest = 15
 
-def run(rest, c):
+def run(rest, c, cia, cim, cd, pr, vm):
     display.printText("Start!")
     time.sleep(1)
+    odVal = 0
 
     i = 0
+    p1t = 0
+    marker = 0
 
     while True:
 
@@ -87,29 +93,51 @@ def run(rest, c):
         # Update screen
 
         if (i % 3) == 0:
-            display.printStatus(str(temp.readTemp()), str(od.rawRead()), str(pump1.getVal()), str(pump2.getVal()), cooler.status, "p", pid[0])
+            display.printStatus(str(temp.readTemp()), str(odVal), str(pump1.getVal()), str(pump2.getVal()), cooler.status, "p", odpid[0])
         if (i % 3) == 1:
-            display.printStatus(str(temp.readTemp()), str(od.rawRead()), str(pump1.getVal()), str(pump2.getVal()), cooler.status, "i", pid[1])
+            display.printStatus(str(temp.readTemp()), str(odVal), str(pump1.getVal()), str(pump2.getVal()), cooler.status, "i", odpid[1])
         if (i % 3) == 2:
-            display.printStatus(str(temp.readTemp()), str(od.rawRead()), str(pump1.getVal()), str(pump2.getVal()), cooler.status, "d", pid[2])
+            display.printStatus(str(temp.readTemp()), str(odVal), str(pump1.getVal()), str(pump2.getVal()), cooler.status, "d", odpid[2])
 
 
         # Temp Control
-        pw = toPW(getValPID (pid, err, optTemp, temp.readTemp()))
 
-        if (pw > 500):
+        temppw = toPW(getValPID (temppid, temperr, optTemp, temp.readTemp()))
+
+        if (temppw > 500):
             cooler.superCool(pump2)
         else:
             cooler.basicCool()
 
-        if pw <1023:
-            pump2.activate(pw, cooler)
+        if temppw <1023:
+            pump2.activate(-temppw, cooler)
         else:
             pump2.activate(1023, cooler)
 
+        # OD Control - use this OR the model below!
+
+        # turn pump off to take od reading
+
+        if i % 10 == 0:
+            currentval = pump2.getVal()
+            if cooler.status == "on":
+                cooler.basicCool()
+                pump2.stop(cooler)
+                time.sleep(2)
+                odVal = od.rawRead()
+                pump2.activate(currentval, cooler)
+            else:
+                pump2.stop(cooler)
+                time.sleep(2)
+                odVal = od.rawRead()
+                pump2.activate(currentval, cooler)
+
+            odpw = toPW(getValPID(odpid, oderr, optOD, odVal))
+            pump1.activate(odpw, cooler)
+
         # Algae Control
 
-        # Update concentrations depending on growth and filtration
+        """# Update concentrations depending on growth and filtration
         cia = cia * 2.0**(1/84600)
         cim = cim - 2.0
 
@@ -131,7 +159,7 @@ def run(rest, c):
             pump1.activate(1023, cooler)
             vm = vm + 1.25
         else:
-            pump1.stop(cooler)
+            pump1.stop(cooler)"""
 
         # Increment i
         i = i + 1
@@ -140,19 +168,16 @@ def run(rest, c):
         time.sleep(1)
 
 def checkWL ():
-    if wlHigh.read() > 1000:
+    if wl.read() > 1000:
         return False
     else:
         for i in range (5):
-            if wlHigh.read() > 1000: return False
+            if wl.read() > 1000: return False
         return True
 
 def changeWL():
     if checkWL():
-        if wlLow.read() > 1000:
-            pump1.activate(-1023, cooler)
-        else:
-            pump1.stop(cooler)
+        pass
 
 def toPW (val):
     if val > 50:
@@ -169,7 +194,6 @@ def getValPID (pid, errHistory, tOpt, tAct):
     errHistory.append(tAct - tOpt)
     if len(errHistory) > 20:
         del errHistory[0]
-    print ("val: " + str(val))
     return val
 
 def connect2Client (server="io.adafruit.com", user = user1, password = pwd):
@@ -203,11 +227,11 @@ def callback(topic, message):
     msg = str(message)
     val = int(str(msg)[2:(len(msg)-1)])
     if char == 112:
-        pid[0] = val
+        odpid[0] = val
     elif char == 105:
-        pid[1] = val
+        odpid[1] = val
     elif char == 100:
-        pid[2] = val
+        odpid[2] = val
 
 def subscribePID(client, user = user1):
     client.set_callback(callback)
@@ -218,16 +242,14 @@ def subscribePID(client, user = user1):
     # Change the callback method to assign the input to the correct P, I, D when calibrating
 
 def castData(c):
-    display.printText("Casting data...")
     castCooler(c)
     castOD(c)
     castPump1(c)
     castPump2(c)
     castTemp(c)
-    time.sleep(1)
 
 # Connect to client and initialize client object
 client = connect2Client()
 subscribePID(client)
 
-run(rest, client)
+run(rest, client, cia, cim, cd, pr, vm)
